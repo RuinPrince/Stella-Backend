@@ -1,0 +1,243 @@
+{
+  "sscAdapter": {
+    "url": "https://ssc.nic.in/",
+    "listSelector": ".latest-news ul li",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["notice", "examination", "recruitment", "cgl", "chsl"]
+  },
+  "upscAdapter": {
+    "url": "https://upsc.gov.in/whats-new",
+    "listSelector": ".view-content .views-row",
+    "titleSelector": ".views-field-title a",
+    "linkSelector": ".views-field-title a",
+    "fallbackKeywords": ["examination", "recruitment", "nda", "cds", "civil services"]
+  },
+  "rrbAdapter": {
+    "url": "https://indianrailways.gov.in/railwayboard/view_section.jsp?lang=0&id=0,4,1244",
+    "listSelector": ".table tbody tr",
+    "titleSelector": "td:nth-child(2) a",
+    "linkSelector": "td:nth-child(2) a",
+    "fallbackKeywords": ["ntpc", "group d", "alp", "recruitment"]
+  },
+  "tnpscAdapter": {
+    "url": "https://www.tnpsc.gov.in/English/Notification.aspx",
+    "listSelector": "#table1 tbody tr",
+    "titleSelector": "td:nth-child(3)",
+    "linkSelector": "td:nth-child(3) a",
+    "fallbackKeywords": ["group 1", "group 2", "group 4", "notification"]
+  },
+  "isroAdapter": {
+    "url": "https://www.isro.gov.in/Careers.html",
+    "listSelector": ".job-list .item",
+    "titleSelector": "h4",
+    "linkSelector": "a.apply-btn",
+    "fallbackKeywords": ["scientist", "engineer", "assistant", "recruitment"]
+  },
+  "drdoAdapter": {
+    "url": "https://www.drdo.gov.in/drdo/careers",
+    "listSelector": ".view-content .views-row",
+    "titleSelector": ".views-field-title a",
+    "linkSelector": ".views-field-title a",
+    "fallbackKeywords": ["scientist", "jrf", "apprenticeship"]
+  },
+  "nicAdapter": {
+    "url": "https://www.nic.in/recruitments/",
+    "listSelector": ".recruitment-list li",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["scientist", "technical", "recruitment"]
+  },
+  "nielitAdapter": {
+    "url": "https://nielit.gov.in/recruitments",
+    "listSelector": ".view-recruitments .views-row",
+    "titleSelector": ".views-field-title a",
+    "linkSelector": ".views-field-title a",
+    "fallbackKeywords": ["scientist", "assistant", "recruitment"]
+  },
+  
+  "sbiAdapter": {
+    "url": "https://sbi.co.in/web/careers/current-openings",
+    "listSelector": ".career-item",
+    "titleSelector": ".title",
+    "linkSelector": ".apply-link",
+    "fallbackKeywords": ["po", "clerk", "specialist officer"]
+  },
+  "rbiAdapter": {
+    "url": "https://opportunities.rbi.org.in/Scripts/Vacancies.aspx",
+    "listSelector": "#divVacancies table tr",
+    "titleSelector": "td a",
+    "linkSelector": "td a",
+    "fallbackKeywords": ["grade b", "assistant", "recruitment"]
+  },
+  "nabardAdapter": {
+    "url": "https://www.nabard.org/careers-notices1.aspx?cid=693&id=26",
+    "listSelector": ".notice-list li",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["grade a", "grade b", "development assistant"]
+  },
+  
+  "belAdapter": {
+    "url": "https://bel-india.in/CareersGridbind.aspx",
+    "listSelector": ".career-grid tr",
+    "titleSelector": "td:nth-child(2) a",
+    "linkSelector": "td:nth-child(2) a",
+    "fallbackKeywords": ["probationary engineer", "project engineer", "trainee"]
+  },
+  "bhelAdapter": {
+    "url": "https://careers.bhel.in/",
+    "listSelector": ".latest-updates li",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["engineer trainee", "supervisor", "recruitment"]
+  },
+  "halAdapter": {
+    "url": "https://hal-india.co.in/Career",
+    "listSelector": ".career-table tbody tr",
+    "titleSelector": "td:nth-child(2)",
+    "linkSelector": "td:nth-child(5) a",
+    "fallbackKeywords": ["management trainee", "design trainee"]
+  },
+  "ongcAdapter": {
+    "url": "https://ongcindia.com/web/eng/career/recruitment-notice",
+    "listSelector": ".recruitment-list-item",
+    "titleSelector": "h3 a",
+    "linkSelector": "h3 a",
+    "fallbackKeywords": ["graduate trainee", "apprentice", "recruitment"]
+  },
+  "ntpcAdapter": {
+    "url": "https://careers.ntpc.co.in/",
+    "listSelector": ".job-postings .posting",
+    "titleSelector": ".title",
+    "linkSelector": ".apply-btn",
+    "fallbackKeywords": ["executive trainee", "diploma trainee", "recruitment"]
+  },
+  "ioclAdapter": {
+    "url": "https://iocl.com/latest-job-opening",
+    "listSelector": ".job-openings-list li",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["apprentice", "engineers", "officers"]
+  },
+  "gailAdapter": {
+    "url": "https://gailonline.com/CRApplyingGail.html",
+    "listSelector": ".career-list li",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["executive", "non-executive", "recruitment"]
+  },
+  "powerGridAdapter": {
+    "url": "https://www.powergrid.in/job-opportunities",
+    "listSelector": ".view-job-opportunities .views-row",
+    "titleSelector": ".views-field-title a",
+    "linkSelector": ".views-field-title a",
+    "fallbackKeywords": ["engineer trainee", "diploma trainee", "apprentice"]
+  },
+  
+  "tcsAdapter": {
+    "url": "https://www.tcs.com/careers/india",
+    "listSelector": ".job-listing-item",
+    "titleSelector": "h3.job-title",
+    "linkSelector": "a.job-link",
+    "fallbackKeywords": ["tcs nqt", "ninja", "digital", "off-campus"]
+  },
+  "infosysAdapter": {
+    "url": "https://www.infosys.com/careers/apply.html",
+    "listSelector": ".job-card",
+    "titleSelector": ".job-title",
+    "linkSelector": "a.apply-now",
+    "fallbackKeywords": ["systems engineer", "operations executive", "off-campus"]
+  },
+  "zohoAdapter": {
+    "url": "https://careers.zohocorp.com/jobs/Careers",
+    "listSelector": ".job-posting",
+    "titleSelector": "h2.job-title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["software developer", "quality analyst", "fresher"]
+  },
+  "freshworksAdapter": {
+    "url": "https://www.freshworks.com/company/careers/",
+    "listSelector": ".job-listing",
+    "titleSelector": ".title",
+    "linkSelector": "a.apply-link",
+    "fallbackKeywords": ["software engineer", "product manager", "fresher"]
+  },
+  "accentureAdapter": {
+    "url": "https://www.accenture.com/in-en/careers/jobsearch",
+    "listSelector": ".job-card",
+    "titleSelector": "h3",
+    "linkSelector": "a.job-card-link",
+    "fallbackKeywords": ["associate software engineer", "system and application services"]
+  },
+  "wiproAdapter": {
+    "url": "https://careers.wipro.com/careers-home",
+    "listSelector": ".job-tile",
+    "titleSelector": ".job-title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["project engineer", "elite", "turbo"]
+  },
+  "hcltechAdapter": {
+    "url": "https://www.hcltech.com/careers",
+    "listSelector": ".job-list-item",
+    "titleSelector": "h4",
+    "linkSelector": "a",
+    "fallbackKeywords": ["fresher", "graduate engineer trainee", "software engineer"]
+  },
+  "cognizantAdapter": {
+    "url": "https://careers.cognizant.com/global/en",
+    "listSelector": ".job-list-item",
+    "titleSelector": ".job-title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["programmer analyst trainee", "genc", "elevate"]
+  },
+  "microsoftAdapter": {
+    "url": "https://careers.microsoft.com/v2/global/en/home.html",
+    "listSelector": ".job-item",
+    "titleSelector": ".job-title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["software engineer", "intern", "university"]
+  },
+  "amazonAdapter": {
+    "url": "https://www.amazon.jobs/en/locations/india",
+    "listSelector": ".job-tile",
+    "titleSelector": "h3.job-title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["sde", "software development engineer", "intern"]
+  },
+  "googleAdapter": {
+    "url": "https://www.google.com/about/careers/applications/jobs/results",
+    "listSelector": ".VfPpkd-dgl2Hf-bMcfEe",
+    "titleSelector": "h3",
+    "linkSelector": "a",
+    "fallbackKeywords": ["software engineer", "intern", "university graduate"]
+  },
+  "ltimindtreeAdapter": {
+    "url": "https://www.ltimindtree.com/careers/",
+    "listSelector": ".job-posting",
+    "titleSelector": ".title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["graduate trainee", "software engineer"]
+  },
+  "ibmAdapter": {
+    "url": "https://www.ibm.com/in-en/employment/",
+    "listSelector": ".job-list-item",
+    "titleSelector": "h3",
+    "linkSelector": "a",
+    "fallbackKeywords": ["associate system engineer", "intern"]
+  },
+  "oracleAdapter": {
+    "url": "https://careers.oracle.com/jobs/",
+    "listSelector": ".job-item",
+    "titleSelector": ".job-title",
+    "linkSelector": "a",
+    "fallbackKeywords": ["software developer", "member of technical staff"]
+  },
+  "capgeminiAdapter": {
+    "url": "https://www.capgemini.com/in-en/careers/jobs/",
+    "listSelector": ".job-result",
+    "titleSelector": "h3",
+    "linkSelector": "a",
+    "fallbackKeywords": ["analyst", "senior analyst", "fresher"]
+  }
+}

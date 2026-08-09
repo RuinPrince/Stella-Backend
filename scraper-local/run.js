@@ -52,12 +52,60 @@ async function runScrapers() {
   log('--- Starting Local Scraper Backup ---');
 
   try {
-    // Run IBPS Scraper
-    const ibps = new IBPSMockAdapter(prisma);
-    await ibps.process();
-    log('IBPS scraping completed successfully.');
+    // 1. Fetch active sources from DB
+    const sources = await prisma.scraperSource.findMany({
+      where: { status: { not: 'UNAVAILABLE' } }
+    });
     
-    // Add other scrapers here later (SSC, RRB, etc.)
+    log(`Found ${sources.length} active/pending sources.`);
+
+    for (const src of sources) {
+      log(`[${src.category}] Running ${src.name} (${src.adapterName})...`);
+      
+      // Update lastCheckedAt immediately
+      await prisma.scraperSource.update({
+        where: { id: src.id },
+        data: { lastCheckedAt: new Date() }
+      });
+
+      try {
+        const adapterPath = path.join(__dirname, `../src/scrapers/${src.adapterName}.js`);
+        
+        let adapterInstance;
+
+        // Check if the specific adapter file actually exists
+        if (fs.existsSync(adapterPath)) {
+          const AdapterClass = require(adapterPath);
+          adapterInstance = new AdapterClass(prisma);
+        } else {
+          // Fallback to Universal Adapter
+          log(`  -> Specific adapter not found. Using Universal Adapter...`);
+          const UniversalAdapter = require('../src/scrapers/UniversalAdapter');
+          adapterInstance = new UniversalAdapter(prisma, src.adapterName, src.name, src.category);
+        }
+
+        await adapterInstance.process();
+        
+        // Success
+        await prisma.scraperSource.update({
+          where: { id: src.id },
+          data: { 
+            lastSuccessfulFetchAt: new Date(),
+            status: 'ACTIVE' // reset to active if it was needs_attention
+          }
+        });
+        log(`✓ ${src.name} completed successfully.`);
+
+      } catch (err) {
+        log(`✗ Failed ${src.name}: ${err.message}`);
+        
+        // If it fails, mark as NEEDS_ATTENTION
+        await prisma.scraperSource.update({
+          where: { id: src.id },
+          data: { status: 'NEEDS_ATTENTION' }
+        });
+      }
+    }
 
     // Check deadlines
     await checkDeadlines();
