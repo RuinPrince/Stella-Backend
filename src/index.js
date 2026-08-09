@@ -8,6 +8,12 @@ const { checkEligibility } = require('./services/eligibilityEngine');
 const { calculatePriority } = require('./services/priorityEngine');
 const { calculateReadiness } = require('./services/preparationEngine');
 const { generateDailyPlan } = require('./services/studyPlanGenerator');
+
+const syllabusRoutes = require('./routes/syllabus');
+const preparationRoutes = require('./routes/preparation');
+const applicationRoutes = require('./routes/applications');
+const organizationRoutes = require('./routes/organizations');
+const sourcesRoutes = require('./routes/sources');
 const { initCronJobs } = require('./cron');
 
 const app = express();
@@ -17,6 +23,8 @@ app.use(express.json());
 // ==========================================
 // API Endpoints
 // ==========================================
+
+app.use('/api/sources', sourcesRoutes);
 
 // --- Health Check ---
 app.get('/api/health', (req, res) => {
