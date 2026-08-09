@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id               Int      @id @default(autoincrement())
+  education        String?
+  branch           String?
+  graduationYear   Int?
+  dateOfBirth      DateTime?
+  country          String?
+  state            String?
+  primaryInterests String?
+  salaryPreference String?
+  fcmToken         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Organization {
+  id           Int           @id @default(autoincrement())
+  name         String
+  sector       String
+  officialUrl  String?
+  recruitments Recruitment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Recruitment {
+  id                      Int          @id @default(autoincrement())
+  organizationId          Int
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  recruitmentName         String
+  postName                String
+  vacancies               Int?
+  description             String?
+  sector                  String?
+  jobType                 String?
+
+  qualificationSummary    String?
+
+  basicPay                String?
+  payLevel                String?
+  payScale                String?
+  grossSalary             String?
+  ctc                     String?
+  inHandSalary            String?
+  allowances              String?
+
+  applicationStartDate    DateTime?
+  applicationEndDate      DateTime?
+  examDate                DateTime?
+  notificationDate        DateTime?
+
+  selectionProcess        String?
+  examPattern             String?
+
+  officialNotificationUrl String?
+  officialApplicationUrl  String?
+  notificationPdfUrl      String?
+  sourceUrl               String?
+
+  status                  String       @default("UPCOMING")
+  verificationStatus      String       @default("NEEDS_VERIFICATION")
+  lastVerifiedAt          DateTime?
+
+  computedEligibility     String       @default("NEEDS_VERIFICATION")
+  computedPriority        Int          @default(0)
+
+  eligibilityRule         EligibilityRule?
+  exam                    Exam?
+  applicationTracker      ApplicationTracker?
+
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+}
+
+model EligibilityRule {
+  id               Int         @id @default(autoincrement())
+  recruitmentId    Int         @unique
+  recruitment      Recruitment @relation(fields: [recruitmentId], references: [id])
+
+  allowedDegrees   String?
+  allowedBranches  String?
+  maxAge           Int?
+  minAge           Int?
+  experienceYears  Int?        @default(0)
+  minPercentage    Float?
+  otherRequirements String?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model ApplicationTracker {
+  id               Int         @id @default(autoincrement())
+  recruitmentId    Int         @unique
+  recruitment      Recruitment @relation(fields: [recruitmentId], references: [id])
+
+  applicationStatus String    @default("NOT_STARTED")
+  applicationDate   DateTime?
+  admitCardStatus   String?
+  examStatus        String?
+  resultStatus      String?
+  notes             String?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model Exam {
+  id              Int           @id @default(autoincrement())
+  recruitmentId   Int           @unique
+  recruitment     Recruitment   @relation(fields: [recruitmentId], references: [id])
+  name            String
+  date            DateTime?
+  examTopics      ExamTopic[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Subject {
+  id              Int           @id @default(autoincrement())
+  name            String        @unique
+  topics          Topic[]
+}
+
+model Topic {
+  id              Int           @id @default(autoincrement())
+  subjectId       Int
+  subject         Subject       @relation(fields: [subjectId], references: [id])
+  name            String
+  examTopics      ExamTopic[]
+  progress        TopicProgress?
+  dailyTasks      DailyTask[]
+}
+
+model ExamTopic {
+  id              Int           @id @default(autoincrement())
+  examId          Int
+  topicId         Int
+  exam            Exam          @relation(fields: [examId], references: [id])
+  topic           Topic         @relation(fields: [topicId], references: [id])
+  weightage       Int           @default(1)
+
+  @@unique([examId, topicId])
+}
+
+model TopicProgress {
+  id              Int           @id @default(autoincrement())
+  topicId         Int           @unique
+  topic           Topic         @relation(fields: [topicId], references: [id])
+  status          String        @default("NOT_STARTED")
+  studyHours      Float         @default(0.0)
+  questionsSolved Int           @default(0)
+  accuracy        Float         @default(0.0)
+  lastStudiedAt   DateTime?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model DailyTask {
+  id              Int           @id @default(autoincrement())
+  date            DateTime
+  type            String
+  title           String
+  isCompleted     Boolean       @default(false)
+
+  topicId         Int?
+  topic           Topic?        @relation(fields: [topicId], references: [id])
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
