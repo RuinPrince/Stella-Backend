@@ -32,8 +32,26 @@ function checkEligibility(profile, rule) {
     hasWarnings = true;
   }
 
-  if (hasWarnings) return "PROBABLY_ELIGIBLE";
-  return "ELIGIBLE";
+  // 3. Check Graduation Status vs Cutoff
+  let baseStatus = hasWarnings ? "PROBABLY_ELIGIBLE" : "ELIGIBLE";
+
+  if (profile.graduationYear && rule.qualificationCutoffDate) {
+    const gradYear = profile.graduationYear;
+    // Default to June (month 5, 0-indexed) if not specified
+    const gradMonth = profile.graduationMonth ? profile.graduationMonth - 1 : 5;
+    const expectedGradDate = new Date(gradYear, gradMonth, 15);
+    const cutoffDate = new Date(rule.qualificationCutoffDate);
+
+    if (expectedGradDate > cutoffDate) {
+      if (rule.allowsFinalYear) {
+        return "POTENTIALLY_ELIGIBLE";
+      } else {
+        return "NOT_ELIGIBLE";
+      }
+    }
+  }
+
+  return baseStatus;
 }
 
 module.exports = { checkEligibility };

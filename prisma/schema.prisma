@@ -11,6 +11,7 @@ model Profile {
   education        String?
   branch           String?
   graduationYear   Int?
+  graduationMonth  Int?
   dateOfBirth      DateTime?
   country          String?
   state            String?
@@ -92,6 +93,9 @@ model EligibilityRule {
   experienceYears  Int?        @default(0)
   minPercentage    Float?
   otherRequirements String?
+
+  qualificationCutoffDate DateTime?
+  allowsFinalYear         Boolean     @default(false)
 
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt

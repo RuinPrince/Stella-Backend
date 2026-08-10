@@ -9,10 +9,7 @@ const { calculatePriority } = require('./services/priorityEngine');
 const { calculateReadiness } = require('./services/preparationEngine');
 const { generateDailyPlan } = require('./services/studyPlanGenerator');
 
-const syllabusRoutes = require('./routes/syllabus');
-const preparationRoutes = require('./routes/preparation');
-const applicationRoutes = require('./routes/applications');
-const organizationRoutes = require('./routes/organizations');
+
 const sourcesRoutes = require('./routes/sources');
 const { initCronJobs } = require('./cron');
 
@@ -345,10 +342,38 @@ app.post('/api/cron/scrape', async (req, res) => {
   const secret = req.headers['x-cron-secret'] || req.query.secret;
   if (secret !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const IBPSMockAdapter = require('./scrapers/ibpsMockAdapter');
-    const ibps = new IBPSMockAdapter(prisma);
-    await ibps.process();
-    res.json({ status: 'ok', message: 'Scrapers executed' });
+    const sources = await prisma.scraperSource.findMany({
+      where: { status: { not: 'UNAVAILABLE' } },
+      orderBy: { lastCheckedAt: 'asc' },
+      take: 3
+    });
+
+    const UniversalAdapter = require('./scrapers/UniversalAdapter');
+    const fs = require('fs');
+    const path = require('path');
+
+    let processed = [];
+
+    for (const src of sources) {
+      await prisma.scraperSource.update({ where: { id: src.id }, data: { lastCheckedAt: new Date() } });
+      try {
+        const adapterPath = path.join(__dirname, `scrapers/${src.adapterName}.js`);
+        let adapterInstance;
+        if (fs.existsSync(adapterPath)) {
+          const AdapterClass = require(adapterPath);
+          adapterInstance = new AdapterClass(prisma);
+        } else {
+          adapterInstance = new UniversalAdapter(prisma, src.adapterName, src.name, src.category);
+        }
+        await adapterInstance.process();
+        await prisma.scraperSource.update({ where: { id: src.id }, data: { lastSuccessfulFetchAt: new Date(), status: 'ACTIVE' } });
+        processed.push({ name: src.name, status: 'success' });
+      } catch (err) {
+        await prisma.scraperSource.update({ where: { id: src.id }, data: { status: 'NEEDS_ATTENTION' } });
+        processed.push({ name: src.name, status: 'error', error: err.message });
+      }
+    }
+    res.json({ status: 'ok', message: 'Cron processed batch of sources', processed });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
