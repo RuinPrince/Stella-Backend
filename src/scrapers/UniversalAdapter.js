@@ -91,7 +91,7 @@ class UniversalAdapter extends BaseAdapter {
 
       // 3. Process the extracted jobs
       const formattedJobs = jobs.slice(0, 5).map(j => ({ // limit to top 5 to avoid spam
-        recruitmentName: `${this.orgName} Recruitment 2026`,
+        recruitmentName: `${this.organizationName} Recruitment 2026`,
         postName: this.capitalize(j.title),
         status: 'OPEN',
         applicationEndDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // Guess: 15 days from now

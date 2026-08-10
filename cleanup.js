@@ -1,16 +1,33 @@
 const { PrismaClient } = require('@prisma/client');
-const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
-const a = new PrismaBetterSqlite3({ url: "file:./dev.db" });
-const p = new PrismaClient({ adapter: a });
+const { PrismaPg } = require('@prisma/adapter-pg');
+require('dotenv').config();
 
-async function run() {
-  // Delete old scraper duplicates (IDs 1,2 have no exam data)
-  await p.eligibilityRule.deleteMany({ where: { recruitmentId: { in: [1, 2] } } });
-  await p.recruitment.deleteMany({ where: { id: { in: [1, 2] } } });
-  console.log('Deleted duplicate IDs 1,2');
+const connectionString = process.env.DATABASE_URL;
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
-  const count = await p.recruitment.count();
-  console.log('Remaining:', count, 'opportunities');
-  await p.$disconnect();
+async function cleanupUndefined() {
+  try {
+    const records = await prisma.recruitment.findMany({
+      where: { recruitmentName: { contains: 'undefined' } }
+    });
+    
+    for (const r of records) {
+      // Replace undefined with empty string
+      const newName = r.recruitmentName.replace('undefined ', '');
+      await prisma.recruitment.update({
+        where: { id: r.id },
+        data: { recruitmentName: newName }
+      });
+      console.log(`Updated: ${r.recruitmentName} -> ${newName}`);
+    }
+    
+    console.log(`Cleaned up ${records.length} records.`);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
-run();
+
+cleanupUndefined();
