@@ -92,11 +92,11 @@ class UniversalAdapter extends BaseAdapter {
       // 3. Process the extracted jobs
       const formattedJobs = jobs.slice(0, 5).map(j => ({ // limit to top 5 to avoid spam
         recruitmentName: `${this.organizationName} Recruitment 2026`,
-        postName: this.capitalize(j.title),
+        postName: this.cleanTitle(j.title),
         status: 'OPEN',
         applicationEndDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // Guess: 15 days from now
         basicPay: 'Not specified',
-        description: `Source: ${j.url}`,
+        description: 'Please refer to the official source link below for complete details regarding eligibility, compensation, and application procedures.',
         officialApplicationUrl: j.url
       }));
 
@@ -108,8 +108,26 @@ class UniversalAdapter extends BaseAdapter {
     }
   }
 
-  capitalize(str) {
-    return str.replace(/\b\w/g, l => l.toUpperCase());
+  cleanTitle(str) {
+    // Remove HTML tags or malformed fragments
+    let clean = str.replace(/<[^>]*>?/gm, '').replace(/^[>"]+/, '');
+    
+    // Replace underscores with spaces, remove common file extensions
+    clean = clean.replace(/_/g, ' ').replace(/\.html|\.pdf|\.aspx|\.php/gi, '');
+    
+    // Collapse whitespace
+    clean = clean.replace(/\s+/g, ' ').trim();
+    
+    // Capitalize
+    clean = clean.replace(/\b\w/g, l => l.toUpperCase());
+    
+    // If it's just a generic word, make it meaningful
+    const lower = clean.toLowerCase();
+    if (lower === 'recruitment' || lower === 'careers' || lower === 'apply' || clean.length < 3) {
+      clean = `${this.organizationName} General Recruitment`;
+    }
+    
+    return clean.substring(0, 100).trim();
   }
 }
 

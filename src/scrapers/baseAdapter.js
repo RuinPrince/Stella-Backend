@@ -71,7 +71,9 @@ class BaseAdapter {
             changes.push(`Vacancies updated from ${existing.vacancies} to ${flatData.vacancies}`);
           }
           if (flatData.applicationEndDate && existing.applicationEndDate?.getTime() !== flatData.applicationEndDate.getTime()) {
-            changes.push(`Deadline updated to ${flatData.applicationEndDate}`);
+            const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            const dateStr = flatData.applicationEndDate.toLocaleString('en-IN', options) + ' IST';
+            changes.push(`Deadline updated to ${dateStr}`);
           }
 
           if (changes.length > 0) {
