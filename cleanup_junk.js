@@ -1,58 +1,61 @@
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
-require('dotenv').config();
+const prisma = require('./src/lib/prisma');
 
-const connectionString = process.env.DATABASE_URL;
-const adapter = new PrismaPg({ connectionString });
-const prisma = new PrismaClient({ adapter });
-
-function cleanTitle(str, orgName) {
-  let clean = str.replace(/<[^>]*>?/gm, '').replace(/^[>"]+/, '');
-  clean = clean.replace(/_/g, ' ').replace(/\.html|\.pdf|\.aspx|\.php/gi, '');
-  clean = clean.replace(/\s+/g, ' ').trim();
-  clean = clean.replace(/\b\w/g, l => l.toUpperCase());
-  
-  const lower = clean.toLowerCase();
-  if (lower === 'recruitment' || lower === 'careers' || lower === 'apply' || clean.length < 3) {
-    clean = `${orgName} General Recruitment`;
-  }
-  
-  return clean.substring(0, 100).trim();
-}
-
-async function cleanupJunk() {
+async function cleanupSkeletons() {
   try {
-    const recruitments = await prisma.recruitment.findMany({
-      include: { organization: true }
+    // 1. Fix "Not specified" basicPay → null
+    const notSpecifiedRecords = await prisma.recruitment.findMany({
+      where: { basicPay: 'Not specified' }
     });
     
-    let updatedCount = 0;
+    for (const r of notSpecifiedRecords) {
+      await prisma.recruitment.update({
+        where: { id: r.id },
+        data: { basicPay: null }
+      });
+    }
+    console.log(`[1/3] Fixed ${notSpecifiedRecords.length} "Not specified" basicPay records → null`);
 
-    for (const r of recruitments) {
-      const orgName = r.organization?.name || 'Organization';
-      const newTitle = cleanTitle(r.postName, orgName);
-      
-      let newDescription = r.description;
-      if (newDescription && newDescription.startsWith('Source: http')) {
-        newDescription = 'Please refer to the official source link below for complete details regarding eligibility, compensation, and application procedures.';
+    // 2. Fix generic placeholder descriptions
+    const placeholderRecords = await prisma.recruitment.findMany({
+      where: {
+        OR: [
+          { description: { startsWith: 'Please refer to the official' } },
+          { description: { startsWith: 'Source: ' } },
+          { description: { startsWith: 'Source: Notification' } },
+        ]
       }
+    });
+    
+    for (const r of placeholderRecords) {
+      await prisma.recruitment.update({
+        where: { id: r.id },
+        data: { description: null }
+      });
+    }
+    console.log(`[2/3] Cleared ${placeholderRecords.length} placeholder descriptions → null`);
 
-      if (newTitle !== r.postName || newDescription !== r.description) {
-        await prisma.recruitment.update({
-          where: { id: r.id },
-          data: {
-            postName: newTitle,
-            description: newDescription
-          }
-        });
-        console.log(`Updated [${r.id}]:`);
-        if (newTitle !== r.postName) console.log(`  Title: ${r.postName} -> ${newTitle}`);
-        if (newDescription !== r.description) console.log(`  Description updated.`);
-        updatedCount++;
+    // 3. Delete duplicate/junk skeleton records that have NO useful data at all
+    const allRecords = await prisma.recruitment.findMany({
+      include: { eligibilityRule: true, exam: true }
+    });
+
+    let deletedCount = 0;
+    for (const r of allRecords) {
+      const isJunk = !r.basicPay && !r.payScale && !r.grossSalary &&
+                     !r.selectionProcess && !r.examPattern &&
+                     !r.eligibilityRule && !r.exam &&
+                     !r.vacancies && !r.qualificationSummary &&
+                     r.verificationStatus === 'NEEDS_VERIFICATION';
+      
+      if (isJunk) {
+        await prisma.recruitment.delete({ where: { id: r.id } });
+        console.log(`  Deleted skeleton: [${r.id}] ${r.postName}`);
+        deletedCount++;
       }
     }
+    console.log(`[3/3] Deleted ${deletedCount} empty skeleton records for re-scraping`);
     
-    console.log(`\nSuccessfully cleaned ${updatedCount} records.`);
+    console.log('\nDone! These records will be re-populated with full details on the next scrape cycle.');
   } catch (e) {
     console.error(e);
   } finally {
@@ -60,4 +63,4 @@ async function cleanupJunk() {
   }
 }
 
-cleanupJunk();
+cleanupSkeletons();
