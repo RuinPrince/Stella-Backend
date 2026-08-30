@@ -1,5 +1,9 @@
 const prisma = require('../src/lib/prisma.js');
 
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('Development fixtures are disabled in production.');
+}
+
 async function main() {
   console.log('🌱 Seeding Database...\n');
 
@@ -148,7 +152,7 @@ async function main() {
     { name: 'NIELIT', category: 'GOVERNMENT', adapterName: 'nielitAdapter' },
     
     // BANKING
-    { name: 'IBPS', category: 'BANKING', adapterName: 'ibpsMockAdapter' },
+    { name: 'IBPS', category: 'BANKING', adapterName: 'ibpsAdapter' },
     { name: 'SBI', category: 'BANKING', adapterName: 'sbiAdapter' },
     { name: 'RBI', category: 'BANKING', adapterName: 'rbiAdapter' },
     { name: 'NABARD', category: 'BANKING', adapterName: 'nabardAdapter' },

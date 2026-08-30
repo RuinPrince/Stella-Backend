@@ -1,4 +1,11 @@
 {
+  "ibpsAdapter": {
+    "url": "https://www.ibps.in/",
+    "listSelector": ".recruitment-list li, .latest-news li, table tbody tr",
+    "titleSelector": "a",
+    "linkSelector": "a",
+    "fallbackKeywords": ["clerk", "po", "so", "specialist officer", "crp", "recruitment", "notification"]
+  },
   "sscAdapter": {
     "url": "https://ssc.nic.in/",
     "listSelector": ".latest-news ul li",

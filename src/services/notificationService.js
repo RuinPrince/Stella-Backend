@@ -1,54 +1,59 @@
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
-const fs = require('fs');
-const path = require('path');
-
-// Initialize Firebase Admin (Requires service account key from user)
-const serviceAccountPath = path.join(__dirname, '../../firebase-service-account.json');
+// Firebase Admin is loaded lazily to avoid ESM/CJS crash on Vercel
+// (jwks-rsa -> jose is ESM-only and breaks require())
+let messaging = null;
 let isFirebaseInitialized = false;
 
-if (fs.existsSync(serviceAccountPath)) {
-  const serviceAccount = require(serviceAccountPath);
-  initializeApp({
-    credential: cert(serviceAccount)
-  });
-  isFirebaseInitialized = true;
-  console.log('[FCM] Firebase Admin Initialized successfully.');
-} else {
-  console.log('[FCM WARNING] firebase-service-account.json not found! Push notifications will be mocked.');
+function initFirebase() {
+  if (isFirebaseInitialized) return;
+  isFirebaseInitialized = true; // only attempt once
+
+  try {
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!serviceAccountJson) {
+      console.log('[FCM] No FIREBASE_SERVICE_ACCOUNT env var. Push notifications disabled.');
+      return;
+    }
+
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    const { initializeApp, cert } = require('firebase-admin/app');
+    const { getMessaging } = require('firebase-admin/messaging');
+
+    initializeApp({ credential: cert(serviceAccount) });
+    messaging = getMessaging();
+    console.log('[FCM] Firebase Admin initialized successfully.');
+  } catch (error) {
+    console.log('[FCM] Firebase init failed (non-critical):', error.message);
+    messaging = null;
+  }
 }
 
 async function sendPushNotification(title, body, data) {
-  if (isFirebaseInitialized) {
+  initFirebase();
+
+  if (messaging) {
     try {
       const message = {
         notification: { title, body },
         data: {
           ...data,
-          // FCM data payloads only accept string values
           recruitmentId: data?.recruitmentId?.toString() ?? ''
         },
-        topic: 'all_users' // For MVP, broadcast to all users
+        topic: 'all_users'
       };
-      const response = await getMessaging().send(message);
-      console.log('[FCM] Successfully sent message:', response);
+      const response = await messaging.send(message);
+      console.log('[FCM] Sent:', response);
     } catch (error) {
-      console.error('[FCM ERROR] Error sending message:', error);
+      console.error('[FCM] Send failed:', error.message);
     }
   } else {
-    // Fallback to mock logging
-    console.log(`\n[MOCK FCM PUSH]`);
-    console.log(`Title: ${title}`);
-    console.log(`Body:  ${body}`);
-    if (data) console.log(`Data:  ${JSON.stringify(data)}`);
-    console.log('------------------------------------\n');
+    console.log(`[FCM Mock] ${title} — ${body}`);
   }
 }
 
 function notifyNewOpportunity(recruitment) {
   sendPushNotification(
     '🚨 NEW OPPORTUNITY',
-    `${recruitment.postName} at ${recruitment.organization.name}. Tap to view eligibility.`,
+    `${recruitment.postName} at ${recruitment.organization?.name || 'Unknown'}. Tap to view.`,
     { recruitmentId: recruitment.id }
   );
 }
@@ -64,7 +69,7 @@ function notifyImportantUpdate(recruitment, changeMessage) {
 function notifyDeadline(recruitment, daysLeft) {
   sendPushNotification(
     '⏰ DEADLINE ALERT',
-    `${recruitment.postName} closes in ${daysLeft} days. Application status: Not submitted.`,
+    `${recruitment.postName} closes in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}.`,
     { recruitmentId: recruitment.id }
   );
 }

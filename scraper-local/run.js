@@ -1,10 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const IBPSMockAdapter = require('../src/scrapers/ibpsMockAdapter');
 const { notifyDeadline, notifyNewOpportunity, notifyImportantUpdate } = require('../src/services/notificationService');
 
 // Use the same connection string as Vercel
@@ -14,33 +14,11 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const adapter = new PrismaPg({ connectionString });
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-async function checkDeadlines() {
-  console.log('[LOCAL SCRAPER] Checking deadlines...');
-  const now = new Date();
-  const threeDaysFromNow = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000));
-  
-  const closingSoon = await prisma.recruitment.findMany({
-    where: { 
-      applicationEndDate: { gte: now, lte: threeDaysFromNow },
-      status: 'OPEN' 
-    }
-  });
-
-  for (const opp of closingSoon) {
-    const daysLeft = Math.ceil((opp.applicationEndDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-    console.log(`[DEADLINE ALERT] ${opp.postName} closes in ${daysLeft} days!`);
-    notifyDeadline(opp, daysLeft);
-    
-    await prisma.recruitment.update({
-      where: { id: opp.id },
-      data: { status: 'CLOSING_SOON' }
-    });
-  }
-}
-
+const { processOpportunityLifecycle } = require('../src/services/opportunityLifecycle');
 async function runScrapers() {
   const logFile = path.join(__dirname, 'scraper_log.txt');
   const log = (msg) => {
@@ -78,6 +56,11 @@ async function runScrapers() {
           const AdapterClass = require(adapterPath);
           adapterInstance = new AdapterClass(prisma);
         } else {
+          if (src.category === 'PRIVATE_IT') {
+            await prisma.scraperSource.update({ where: { id: src.id }, data: { status: 'UNAVAILABLE' } });
+            log(`! ${src.name} disabled: no supported official ATS adapter.`);
+            continue;
+          }
           // Fallback to Universal Adapter
           log(`  -> Specific adapter not found. Using Universal Adapter...`);
           const UniversalAdapter = require('../src/scrapers/UniversalAdapter');
@@ -107,9 +90,9 @@ async function runScrapers() {
       }
     }
 
-    // Check deadlines
-    await checkDeadlines();
-    log('Deadline checks completed.');
+    // Process Opportunity Lifecycle
+    await processOpportunityLifecycle();
+    log('Opportunity lifecycle processed.');
 
   } catch (error) {
     log(`ERROR: ${error.message}`);

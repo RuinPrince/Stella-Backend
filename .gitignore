@@ -1,8 +1,39 @@
-node_modules
-# Keep environment variables out of version control
+# Dependencies
+node_modules/
+
+# Environment variables — NEVER commit
 .env
+.env.*
+!.env.example
 
-/generated/prisma
+# Prisma generated client
+/generated/prisma/
 
-.vercel
-.env*
+# Vercel
+.vercel/
+
+# Secrets — NEVER commit
+firebase-service-account.json
+
+# Local dev databases
+*.db
+
+# Local dev artifacts
+scraper-local/
+test_*.js
+cleanup*.js
+seed_*.js
+
+# AI tool directories
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

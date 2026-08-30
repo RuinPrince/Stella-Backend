@@ -7,19 +7,27 @@ datasource db {
 }
 
 model Profile {
-  id               Int      @id @default(autoincrement())
-  education        String?
-  branch           String?
-  graduationYear   Int?
-  graduationMonth  Int?
-  dateOfBirth      DateTime?
-  country          String?
-  state            String?
-  primaryInterests String?
-  salaryPreference String?
-  fcmToken         String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                   Int       @id @default(autoincrement())
+  userId               String?   @unique
+  education            String?
+  branch               String?
+  graduationYear       Int?
+  graduationMonth      Int?
+  dateOfBirth          DateTime?
+  country              String?
+  state                String?
+  primaryInterests     String?
+  salaryPreference     String?
+  fcmToken             String?
+  skills               String?
+  cgpa                 Float?
+  percentage           Float?
+  experienceYears      Int?      @default(0)
+  programmingLanguages String?
+  preferredRoles       String?
+  workMode             String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Organization {
@@ -75,7 +83,7 @@ model Recruitment {
 
   eligibilityRule         EligibilityRule?
   exam                    Exam?
-  applicationTracker      ApplicationTracker?
+  applicationTrackers     ApplicationTracker[]
 
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
@@ -103,18 +111,24 @@ model EligibilityRule {
 
 model ApplicationTracker {
   id               Int         @id @default(autoincrement())
-  recruitmentId    Int         @unique
+  recruitmentId    Int
   recruitment      Recruitment @relation(fields: [recruitmentId], references: [id])
 
-  applicationStatus String    @default("NOT_STARTED")
+  userId            String?
+  applicationStatus String    @default("SAVED")
   applicationDate   DateTime?
+  followUpDate      DateTime?
   admitCardStatus   String?
   examStatus        String?
   resultStatus      String?
   notes             String?
+  stageHistory      Json      @default("[]")
+  applicationUrl    String?
 
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+
+  @@unique([userId, recruitmentId])
 }
 
 model Exam {

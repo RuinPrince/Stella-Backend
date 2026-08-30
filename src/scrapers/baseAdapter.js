@@ -26,23 +26,33 @@ class BaseAdapter {
 
   async process() {
     console.log(`[BaseAdapter] Starting scraping for ${this.organizationName}...`);
-    try {
-      const org = await this.getOrganization();
+    const org = await this.getOrganization();
       const rawOpportunities = await this.fetchOpportunities();
 
       for (const raw of rawOpportunities) {
         // Separate nested relations from flat data
         const { eligibilityRule, exam, ...flatData } = raw;
 
-        // Deduplication & Change Detection
-        const existing = await this.prisma.recruitment.findFirst({
-          where: {
-            organizationId: org.id,
-            recruitmentName: flatData.recruitmentName,
-            postName: flatData.postName
-          },
+        // Fuzzy Deduplication
+        const allOrgRecruitments = await this.prisma.recruitment.findMany({
+          where: { organizationId: org.id, status: { not: 'CLOSED' } },
           include: { organization: true }
         });
+
+        const normalize = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+        const targetPost = normalize(flatData.postName);
+        
+        let existing = allOrgRecruitments.find(r => 
+          normalize(r.recruitmentName) === normalize(flatData.recruitmentName) &&
+          normalize(r.postName) === targetPost
+        );
+
+        // Even fuzzier: if postName is very similar and it's from the same organization recently
+        if (!existing) {
+          existing = allOrgRecruitments.find(r => 
+            normalize(r.postName).includes(targetPost) || targetPost.includes(normalize(r.postName))
+          );
+        }
 
         if (!existing) {
           // New Recruitment
@@ -85,9 +95,6 @@ class BaseAdapter {
           }
         }
       }
-    } catch (e) {
-      console.error(`[BaseAdapter] Error processing ${this.organizationName}:`, e.message);
-    }
   }
 }
 

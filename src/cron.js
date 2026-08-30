@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const prisma = require('./lib/prisma');
-const IBPSMockAdapter = require('./scrapers/ibpsMockAdapter');
+const { exec } = require('child_process');
+const path = require('path');
 
 function initCronJobs() {
   // Only run cron locally (Vercel uses API routes for cron)
@@ -12,14 +13,16 @@ function initCronJobs() {
   console.log('[CRON] Background tasks initialized (local mode).');
 
   // Run scrapers every 30 minutes locally
-  cron.schedule('*/30 * * * *', async () => {
+  cron.schedule('*/30 * * * *', () => {
     console.log('[CRON] Running scheduled scrapers at', new Date().toISOString());
-    try {
-      const ibps = new IBPSMockAdapter(prisma);
-      await ibps.process();
-    } catch (e) {
-      console.error('[CRON] Scraper error:', e.message);
-    }
+    const runPath = path.join(__dirname, '../scraper-local/run.js');
+    exec(`node ${runPath}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[CRON] Scraper error:', error.message);
+      }
+      if (stdout) console.log(stdout);
+      if (stderr) console.error(stderr);
+    });
   });
 }
 

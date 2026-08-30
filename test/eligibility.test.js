@@ -1,0 +1,13 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { checkEligibility } = require('../src/services/eligibilityEngine');
+const valid = { education: 'B.Tech', branch: 'Computer Science', percentage: 60, experienceYears: 2, dateOfBirth: '2000-01-01', graduationYear: 2024, graduationMonth: 5 };
+const rule = { allowedDegrees: 'B.Tech', allowedBranches: 'Computer Science', minPercentage: 60, experienceYears: 2, minAge: 18, maxAge: 30, qualificationCutoffDate: '2025-01-01', allowsFinalYear: false };
+test('50% candidate is not eligible for a 60% role', () => assert.equal(checkEligibility({ ...valid, percentage: 50 }, rule).status, 'NOT_ELIGIBLE'));
+test('60% candidate meets a 60% role requirement', () => assert.equal(checkEligibility(valid, rule).status, 'ELIGIBLE'));
+test('insufficient experience is not eligible', () => assert.equal(checkEligibility({ ...valid, experienceYears: 1 }, rule).status, 'NOT_ELIGIBLE'));
+test('sufficient experience is eligible', () => assert.equal(checkEligibility({ ...valid, experienceYears: 3 }, rule).status, 'ELIGIBLE'));
+test('wrong branch is not eligible', () => assert.equal(checkEligibility({ ...valid, branch: 'Mechanical' }, rule).status, 'NOT_ELIGIBLE'));
+test('wrong degree is not eligible', () => assert.equal(checkEligibility({ ...valid, education: 'B.Com' }, rule).status, 'NOT_ELIGIBLE'));
+test('missing required information is unknown', () => assert.equal(checkEligibility({ ...valid, percentage: null }, rule).status, 'UNKNOWN'));
+test('fully valid candidate returns structured passing checks', () => { const result = checkEligibility(valid, rule); assert.equal(result.status, 'ELIGIBLE'); assert.ok(result.checks.every((check) => check.status === 'PASS')); });

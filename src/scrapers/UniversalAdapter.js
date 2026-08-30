@@ -15,8 +15,8 @@ try {
 }
 
 class UniversalAdapter extends BaseAdapter {
-  constructor(prisma, adapterName, orgName, sector) {
-    super(prisma, orgName, sector);
+  constructor(prisma, adapterName, organizationName, sector) {
+    super(prisma, organizationName, sector);
     this.adapterName = adapterName;
     this.config = scraperConfig[adapterName];
     if (!this.config) {
@@ -25,7 +25,7 @@ class UniversalAdapter extends BaseAdapter {
   }
 
   async fetchOpportunities() {
-    console.log(`[UniversalAdapter] Attempting to scrape ${this.orgName}...`);
+    console.log(`[UniversalAdapter] Attempting to scrape ${this.organizationName}...`);
     const jobs = [];
     
     try {
@@ -41,9 +41,42 @@ class UniversalAdapter extends BaseAdapter {
 
       const $ = cheerio.load(response.data);
       
-      // 1. Try Primary Selectors
+      // 1. Try Structured Data (JSON-LD)
+      let foundViaJsonLd = false;
+      $('script[type="application/ld+json"]').each((i, el) => {
+        try {
+          const jsonStr = $(el).html();
+          const parsed = JSON.parse(jsonStr);
+          const processJsonLd = (obj) => {
+            if (obj && obj['@type'] === 'JobPosting') {
+              const title = obj.title;
+              let link = obj.url || this.config.url;
+              if (title) {
+                jobs.push({ 
+                  title: title.substring(0, 200), 
+                  url: this.resolveUrl(link), 
+                  fallback: false,
+                  jsonLdData: obj
+                });
+                foundViaJsonLd = true;
+              }
+            } else if (Array.isArray(obj)) {
+              obj.forEach(processJsonLd);
+            } else if (obj && typeof obj === 'object') {
+              if (obj['@graph']) {
+                obj['@graph'].forEach(processJsonLd);
+              }
+            }
+          };
+          processJsonLd(parsed);
+        } catch (e) {
+          // Ignore JSON parse errors in script tags
+        }
+      });
+      
+      // 2. Try Primary Selectors if JSON-LD didn't yield results
       let foundViaSelector = false;
-      if (this.config.listSelector) {
+      if (!foundViaJsonLd && this.config.listSelector) {
         $(this.config.listSelector).each((i, el) => {
           const title = $(el).find(this.config.titleSelector).text().trim() || $(el).text().trim();
           let link = $(el).find(this.config.linkSelector).attr('href');
@@ -58,7 +91,7 @@ class UniversalAdapter extends BaseAdapter {
 
       // 2. Heuristic Fallback
       if (!foundViaSelector && this.config.fallbackKeywords) {
-        console.log(`[UniversalAdapter] Primary selectors failed for ${this.orgName}, using heuristic fallback...`);
+        console.log(`[UniversalAdapter] Primary selectors failed for ${this.organizationName}, using heuristic fallback...`);
         
         $('a').each((i, el) => {
           const text = $(el).text().trim().toLowerCase();
@@ -85,15 +118,16 @@ class UniversalAdapter extends BaseAdapter {
         let details = {};
         
         try {
-          details = await this.scrapeDetailPage(j.url);
+          details = await this.scrapeDetailPage(j.url, j.jsonLdData);
         } catch (e) {
           console.log(`[DeepScrape] Failed to extract details from ${j.url}: ${e.message}`);
         }
 
+        const currentYear = new Date().getFullYear();
         formattedJobs.push({
-          recruitmentName: `${this.organizationName} Recruitment 2026`,
+          recruitmentName: `${this.organizationName} Recruitment ${currentYear}`,
           postName: this.cleanTitle(j.title),
-          status: details.status || 'OPEN',
+          status: details.status || 'ACTIVE',
           verificationStatus: 'NEEDS_VERIFICATION',
           
           // Dates (use extracted or null — never guess)
@@ -129,7 +163,7 @@ class UniversalAdapter extends BaseAdapter {
       return formattedJobs;
 
     } catch (error) {
-      console.log(`[UniversalAdapter] Fetch error for ${this.orgName}: ${error.message}`);
+      console.log(`[UniversalAdapter] Fetch error for ${this.organizationName}: ${error.message}`);
       throw error;
     }
   }
@@ -137,7 +171,7 @@ class UniversalAdapter extends BaseAdapter {
   // ═══════════════════════════════════════════════════════════════
   // DEEP SCRAPE: Follow job link and extract structured data
   // ═══════════════════════════════════════════════════════════════
-  async scrapeDetailPage(url) {
+  async scrapeDetailPage(url, jsonLdData = null) {
     let text = '';
 
     // Check if URL points to a PDF
@@ -163,6 +197,20 @@ class UniversalAdapter extends BaseAdapter {
     const examPattern = this.extractExamPattern(text);
     const description = this.extractDescription(text);
 
+    let structuredData = {};
+    if (jsonLdData) {
+      console.log(`[DeepScrape] Applying JSON-LD structured data`);
+      if (jsonLdData.baseSalary) {
+        structuredData.basicPay = typeof jsonLdData.baseSalary === 'object' 
+          ? (jsonLdData.baseSalary.value?.value || jsonLdData.baseSalary.value) 
+          : jsonLdData.baseSalary;
+        if (structuredData.basicPay) structuredData.basicPay = `₹${structuredData.basicPay}`;
+      }
+      if (jsonLdData.description) structuredData.description = this.cleanTitle(jsonLdData.description);
+      if (jsonLdData.datePosted) structuredData.notificationDate = new Date(jsonLdData.datePosted);
+      if (jsonLdData.validThrough) structuredData.applicationEndDate = new Date(jsonLdData.validThrough);
+    }
+
     return {
       ...dates,
       ...salary,
@@ -172,6 +220,7 @@ class UniversalAdapter extends BaseAdapter {
       selectionProcess,
       examPattern,
       description,
+      ...structuredData, // JSON-LD data takes precedence
     };
   }
 
@@ -215,11 +264,36 @@ class UniversalAdapter extends BaseAdapter {
 
       const $ = cheerio.load(response.data);
       
+      // Look for a prominent PDF link on the page before stripping
+      let pdfLink = null;
+      $('a').each((i, el) => {
+        const href = $(el).attr('href');
+        if (href && (href.toLowerCase().endsWith('.pdf') || href.toLowerCase().includes('pdf'))) {
+          const text = $(el).text().toLowerCase();
+          if (text.includes('advertisement') || text.includes('notification') || text.includes('detail') || text.includes('click here')) {
+            pdfLink = this.resolveUrl(href);
+            return false; // break loop
+          }
+          if (!pdfLink) pdfLink = this.resolveUrl(href);
+        }
+      });
+
       // Remove noise
-      $('script, style, nav, footer, header, .menu, .sidebar, .advertisement').remove();
+      $('script, style, nav, footer, header, .sidebar, .advertisement').remove();
       
       // Get clean text
-      return $('body').text().replace(/\s+/g, ' ').trim();
+      let text = $('body').text().replace(/\s+/g, ' ').trim();
+      
+      // If text is too short and we found a PDF, scrape the PDF instead
+      if (text.length < 500 && pdfLink) {
+        console.log(`[DeepScrape] HTML text too short (${text.length} chars). Falling back to linked PDF: ${pdfLink}`);
+        const pdfText = await this.extractFromPdf(pdfLink);
+        if (pdfText && pdfText.length > 100) {
+          text = text + '\n' + pdfText;
+        }
+      }
+      
+      return text;
     } catch (e) {
       console.log(`[DeepScrape] HTML extraction failed: ${e.message}`);
       return '';
@@ -407,7 +481,12 @@ class UniversalAdapter extends BaseAdapter {
     const branchMatch = text.match(/(?:branch|discipline|stream|specialization)[:\s]*([^\n.]{10,120})/i);
     if (branchMatch) {
       branches = branchMatch[1].trim().replace(/\s+/g, ' ');
-    } else {
+      // Filter out obvious noise like navigation text or Hindi
+      branches = branches.replace(/\b(?:Home|Careers|Advertisement|विज्ञापन).*/i, '').trim();
+      if (branches.length > 50) branches = branches.substring(0, 47) + '...';
+      if (branches.length < 3) branches = null;
+    }
+    if (!branches) {
       // Try to find common CS/IT branch mentions
       const csBranches = [];
       if (/computer\s*science/i.test(text)) csBranches.push('Computer Science');

@@ -1,17 +1,21 @@
 {
-  "name": "backend",
+  "name": "stella-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Stella — AI-powered career opportunity intelligence backend. Scrapes 25+ recruitment sources, computes eligibility & priority scores, and delivers real-time push notifications.",
+  "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/*.test.js",
+    "verify": "prisma validate && node --check src/index.js && npm test",
     "postinstall": "prisma generate"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RuinPrince/stella-backend"
+  },
+  "author": "Aravind Samy",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
@@ -22,6 +26,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "firebase-admin": "^14.2.0",
+    "jsdom": "^29.1.1",
     "node-cron": "^4.6.0",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.0"

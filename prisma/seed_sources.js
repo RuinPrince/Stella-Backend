@@ -15,7 +15,7 @@ async function main() {
     { name: 'NIELIT', category: 'GOVERNMENT', adapterName: 'nielitAdapter' },
     
     // BANKING
-    { name: 'IBPS', category: 'BANKING', adapterName: 'ibpsMockAdapter' },
+    { name: 'IBPS', category: 'BANKING', adapterName: 'ibpsAdapter' },
     { name: 'SBI', category: 'BANKING', adapterName: 'sbiAdapter' },
     { name: 'RBI', category: 'BANKING', adapterName: 'rbiAdapter' },
     { name: 'NABARD', category: 'BANKING', adapterName: 'nabardAdapter' },
@@ -30,22 +30,9 @@ async function main() {
     { name: 'GAIL', category: 'PSU', adapterName: 'gailAdapter' },
     { name: 'Power Grid', category: 'PSU', adapterName: 'powerGridAdapter' },
     
-    // PRIVATE IT
-    { name: 'TCS', category: 'PRIVATE_IT', adapterName: 'tcsAdapter' },
-    { name: 'Infosys', category: 'PRIVATE_IT', adapterName: 'infosysAdapter' },
-    { name: 'Zoho', category: 'PRIVATE_IT', adapterName: 'zohoAdapter' },
+    // PRIVATE IT: only official ATS API integrations are active. SPA HTML
+    // sources are intentionally excluded rather than guessed.
     { name: 'Freshworks', category: 'PRIVATE_IT', adapterName: 'freshworksAdapter' },
-    { name: 'Accenture', category: 'PRIVATE_IT', adapterName: 'accentureAdapter' },
-    { name: 'Wipro', category: 'PRIVATE_IT', adapterName: 'wiproAdapter' },
-    { name: 'HCLTech', category: 'PRIVATE_IT', adapterName: 'hcltechAdapter' },
-    { name: 'Cognizant', category: 'PRIVATE_IT', adapterName: 'cognizantAdapter' },
-    { name: 'Microsoft', category: 'PRIVATE_IT', adapterName: 'microsoftAdapter' },
-    { name: 'Amazon', category: 'PRIVATE_IT', adapterName: 'amazonAdapter' },
-    { name: 'Google', category: 'PRIVATE_IT', adapterName: 'googleAdapter' },
-    { name: 'LTIMindtree', category: 'PRIVATE_IT', adapterName: 'ltimindtreeAdapter' },
-    { name: 'IBM', category: 'PRIVATE_IT', adapterName: 'ibmAdapter' },
-    { name: 'Oracle', category: 'PRIVATE_IT', adapterName: 'oracleAdapter' },
-    { name: 'Capgemini', category: 'PRIVATE_IT', adapterName: 'capgeminiAdapter' },
   ];
 
   for (const src of sources) {

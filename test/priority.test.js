@@ -1,0 +1,9 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { calculatePriority, calculatePriorityDetails } = require('../src/services/priorityEngine');
+const now = new Date('2026-08-15T00:00:00Z');
+const job = { postName: 'Software Engineer', description: 'Node JavaScript', applicationEndDate: new Date('2026-08-17T00:00:00Z'), verificationStatus: 'VERIFIED_FROM_OFFICIAL_SOURCE', basicPay: '60000' };
+test('not eligible has zero priority', () => assert.equal(calculatePriority(job, 'NOT_ELIGIBLE', {}, now), 0));
+test('eligible verified deadline-soon match outranks unknown', () => assert.ok(calculatePriority(job, 'ELIGIBLE', { skills: 'Node', preferredRoles: 'Software Engineer' }, now) > calculatePriority(job, 'UNKNOWN', {}, now)));
+test('expired job has zero priority', () => assert.equal(calculatePriority({ ...job, applicationEndDate: new Date('2026-08-14') }, 'ELIGIBLE', {}, now), 0));
+test('priority details are deterministic', () => assert.deepEqual(calculatePriorityDetails(job, 'ELIGIBLE', { skills: 'Node' }, now), calculatePriorityDetails(job, 'ELIGIBLE', { skills: 'Node' }, now)));

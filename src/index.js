@@ -17,6 +17,43 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const requestBuckets = new Map();
+app.use('/api', (req, res, next) => {
+  const key = req.ip || 'unknown';
+  const now = Date.now();
+  const bucket = requestBuckets.get(key) || { startedAt: now, count: 0 };
+  if (now - bucket.startedAt > 60_000) { bucket.startedAt = now; bucket.count = 0; }
+  bucket.count += 1;
+  requestBuckets.set(key, bucket);
+  if (bucket.count > 120) return res.status(429).json({ error: 'Too many requests' });
+  next();
+});
+
+// ==========================================
+// Authentication Middleware
+// ==========================================
+async function requireUser(req, res, next) {
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey !== 'stella-dev-api-key-2026') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  req.user = { uid: 'dev-user-1' };
+  next();
+}
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health' || req.path.startsWith('/cron/')) return next();
+  return requireUser(req, res, next);
+});
+
+const profileFields = new Set(['education', 'branch', 'graduationYear', 'graduationMonth', 'dateOfBirth', 'country', 'state', 'primaryInterests', 'salaryPreference', 'fcmToken', 'skills', 'cgpa', 'percentage', 'experienceYears', 'programmingLanguages', 'preferredRoles', 'workMode']);
+const pick = (body, allowed) => Object.fromEntries(Object.entries(body || {}).filter(([key]) => allowed.has(key)));
+const applicationStages = new Set(['SAVED', 'PLANNING', 'APPLIED', 'ASSESSMENT_PENDING', 'ASSESSMENT_COMPLETED', 'INTERVIEW_SCHEDULED', 'TECHNICAL_INTERVIEW', 'HR_INTERVIEW', 'SELECTED', 'REJECTED', 'WITHDRAWN']);
+const attachTracker = (opportunity) => {
+  const { applicationTrackers = [], ...rest } = opportunity;
+  return { ...rest, applicationTracker: applicationTrackers[0] || null };
+};
+
 // ==========================================
 // API Endpoints
 // ==========================================
@@ -31,9 +68,9 @@ app.get('/api/health', (req, res) => {
 // --- Profile ---
 app.get('/api/profile', async (req, res) => {
   try {
-    let profile = await prisma.profile.findFirst();
+    let profile = await prisma.profile.findUnique({ where: { userId: req.user.uid } });
     if (!profile) {
-      profile = await prisma.profile.create({ data: {} });
+      profile = await prisma.profile.create({ data: { userId: req.user.uid } });
     }
     res.json(profile);
   } catch (error) {
@@ -43,12 +80,12 @@ app.get('/api/profile', async (req, res) => {
 
 app.put('/api/profile', async (req, res) => {
   try {
-    const data = req.body;
-    let profile = await prisma.profile.findFirst();
+    const data = pick(req.body, profileFields);
+    let profile = await prisma.profile.findUnique({ where: { userId: req.user.uid } });
     if (profile) {
       profile = await prisma.profile.update({ where: { id: profile.id }, data });
     } else {
-      profile = await prisma.profile.create({ data });
+      profile = await prisma.profile.create({ data: { ...data, userId: req.user.uid } });
     }
     res.json(profile);
   } catch (error) {
@@ -68,7 +105,9 @@ app.get('/api/organizations', async (req, res) => {
 
 app.post('/api/organizations', async (req, res) => {
   try {
-    const org = await prisma.organization.create({ data: req.body });
+    const { name, sector, officialUrl } = req.body;
+    if (!name || !sector) return res.status(400).json({ error: 'name and sector are required' });
+    const org = await prisma.organization.create({ data: { name, sector, officialUrl: officialUrl || null } });
     res.json(org);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -78,24 +117,31 @@ app.post('/api/organizations', async (req, res) => {
 // --- Recruitments / Opportunities ---
 app.get('/api/opportunities', async (req, res) => {
   try {
-    const { sector, eligibility, minSalary, status: statusFilter, search, sort } = req.query;
+    const { sector, eligibility, minSalary, status: statusFilter, search, sort, jobType } = req.query;
 
-    const profile = await prisma.profile.findFirst();
+    const profile = await prisma.profile.findUnique({ where: { userId: req.user.uid } });
     let opportunities = await prisma.recruitment.findMany({
       include: {
         organization: true,
         eligibilityRule: true,
-        exam: { include: { examTopics: { include: { topic: { include: { progress: true } } } } } },
-        applicationTracker: true,
+        exam: { include: { examTopics: { include: { topic: { include: { progress: true, subject: true } } } } } },
+        applicationTrackers: { where: { userId: req.user.uid }, take: 1 },
       }
     });
 
     opportunities = opportunities.map(opp => {
+      opp = attachTracker(opp);
       const computedElig = checkEligibility(profile, opp.eligibilityRule);
-      const priority = calculatePriority(opp, computedElig, profile);
+      const priority = calculatePriority(opp, computedElig.status, profile);
       let readiness = 0;
       if (opp.exam?.examTopics) { readiness = calculateReadiness(opp.exam.examTopics); }
-      return { ...opp, computedEligibility: computedElig, computedPriority: priority, readiness };
+      return { 
+        ...opp, 
+        computedEligibility: computedElig.status, 
+        eligibilityReasons: computedElig.reasons,
+        computedPriority: priority, 
+        readiness 
+      };
     });
 
     if (search) {
@@ -106,6 +152,7 @@ app.get('/api/opportunities', async (req, res) => {
       );
     }
     if (sector) { opportunities = opportunities.filter(o => (o.sector || o.organization?.sector || '').toLowerCase() === sector.toLowerCase()); }
+    if (jobType) { opportunities = opportunities.filter(o => (o.jobType || '').toLowerCase() === jobType.toLowerCase()); }
     if (eligibility) { opportunities = opportunities.filter(o => o.computedEligibility === eligibility); }
     if (statusFilter) { opportunities = opportunities.filter(o => o.status === statusFilter); }
     if (minSalary) {
@@ -133,21 +180,28 @@ app.get('/api/opportunities', async (req, res) => {
 
 app.get('/api/opportunities/:id', async (req, res) => {
   try {
-    const profile = await prisma.profile.findFirst();
-    const opp = await prisma.recruitment.findUnique({
+    const profile = await prisma.profile.findUnique({ where: { userId: req.user.uid } });
+    let opp = await prisma.recruitment.findUnique({
       where: { id: parseInt(req.params.id) },
       include: {
         organization: true, eligibilityRule: true,
         exam: { include: { examTopics: { include: { topic: { include: { progress: true, subject: true } } } } } },
-        applicationTracker: true,
+        applicationTrackers: { where: { userId: req.user.uid }, take: 1 },
       }
     });
     if (!opp) return res.status(404).json({ error: "Not found" });
+    opp = attachTracker(opp);
     const elig = checkEligibility(profile, opp.eligibilityRule);
-    const priority = calculatePriority(opp, elig, profile);
+    const priority = calculatePriority(opp, elig.status, profile);
     let readiness = 0;
     if (opp.exam?.examTopics) { readiness = calculateReadiness(opp.exam.examTopics); }
-    res.json({ ...opp, computedEligibility: elig, computedPriority: priority, readiness });
+    res.json({ 
+      ...opp, 
+      computedEligibility: elig.status, 
+      eligibilityReasons: elig.reasons,
+      computedPriority: priority, 
+      readiness 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -155,8 +209,7 @@ app.get('/api/opportunities/:id', async (req, res) => {
 
 app.post('/api/opportunities', async (req, res) => {
   try {
-    const opp = await prisma.recruitment.create({ data: req.body, include: { organization: true } });
-    res.json(opp);
+    res.status(403).json({ error: 'Direct opportunity creation is disabled' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -164,8 +217,7 @@ app.post('/api/opportunities', async (req, res) => {
 
 app.put('/api/opportunities/:id', async (req, res) => {
   try {
-    const opp = await prisma.recruitment.update({ where: { id: parseInt(req.params.id) }, data: req.body, include: { organization: true } });
-    res.json(opp);
+    res.status(403).json({ error: 'Direct opportunity modification is disabled' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -174,7 +226,7 @@ app.put('/api/opportunities/:id', async (req, res) => {
 // --- Application Tracker ---
 app.get('/api/applications', async (req, res) => {
   try {
-    const apps = await prisma.applicationTracker.findMany({ include: { recruitment: { include: { organization: true } } } });
+    const apps = await prisma.applicationTracker.findMany({ where: { userId: req.user.uid }, include: { recruitment: { include: { organization: true } } } });
     res.json(apps);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -183,10 +235,13 @@ app.get('/api/applications', async (req, res) => {
 
 app.post('/api/applications', async (req, res) => {
   try {
-    const { recruitmentId, applicationStatus, notes } = req.body;
-    let tracker = await prisma.applicationTracker.findUnique({ where: { recruitmentId } });
-    if (tracker) { tracker = await prisma.applicationTracker.update({ where: { recruitmentId }, data: { applicationStatus, notes } }); }
-    else { tracker = await prisma.applicationTracker.create({ data: { recruitmentId, applicationStatus, notes } }); }
+    const { recruitmentId } = req.body;
+    if (!Number.isInteger(recruitmentId)) return res.status(400).json({ error: 'recruitmentId must be an integer' });
+    const data = pick(req.body, new Set(['applicationStatus', 'notes', 'applicationDate', 'followUpDate', 'applicationUrl']));
+    if (data.applicationStatus && !applicationStages.has(data.applicationStatus)) return res.status(400).json({ error: 'Invalid application status' });
+    let tracker = await prisma.applicationTracker.findUnique({ where: { userId_recruitmentId: { userId: req.user.uid, recruitmentId } } });
+    if (tracker) { tracker = await prisma.applicationTracker.update({ where: { id: tracker.id }, data }); }
+    else { tracker = await prisma.applicationTracker.create({ data: { recruitmentId, userId: req.user.uid, ...data, stageHistory: [] } }); }
     res.json(tracker);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -196,10 +251,14 @@ app.post('/api/applications', async (req, res) => {
 app.put('/api/applications/:recruitmentId', async (req, res) => {
   try {
     const recruitmentId = parseInt(req.params.recruitmentId);
-    const data = req.body;
-    let tracker = await prisma.applicationTracker.findUnique({ where: { recruitmentId } });
-    if (tracker) { tracker = await prisma.applicationTracker.update({ where: { recruitmentId }, data }); }
-    else { tracker = await prisma.applicationTracker.create({ data: { recruitmentId, ...data } }); }
+    const data = pick(req.body, new Set(['applicationStatus', 'notes', 'applicationDate', 'followUpDate', 'applicationUrl']));
+    if (data.applicationStatus && !applicationStages.has(data.applicationStatus)) return res.status(400).json({ error: 'Invalid application status' });
+    const stage = data.applicationStatus;
+    let tracker = await prisma.applicationTracker.findUnique({ where: { userId_recruitmentId: { userId: req.user.uid, recruitmentId } } });
+    if (tracker) {
+      const stageHistory = stage && stage !== tracker.applicationStatus ? [...(tracker.stageHistory || []), { stage, at: new Date().toISOString(), note: data.notes || null }] : tracker.stageHistory;
+      tracker = await prisma.applicationTracker.update({ where: { id: tracker.id }, data: { ...data, stageHistory } });
+    } else { tracker = await prisma.applicationTracker.create({ data: { recruitmentId, userId: req.user.uid, ...data, stageHistory: stage ? [{ stage, at: new Date().toISOString(), note: data.notes || null }] : [] } }); }
     res.json(tracker);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -209,27 +268,28 @@ app.put('/api/applications/:recruitmentId', async (req, res) => {
 // --- Dashboard Summary ---
 app.get('/api/dashboard', async (req, res) => {
   try {
-    const profile = await prisma.profile.findFirst();
+    const profile = await prisma.profile.findUnique({ where: { userId: req.user.uid } });
     const totalOpportunities = await prisma.recruitment.count();
-    const openOpportunities = await prisma.recruitment.count({ where: { status: 'OPEN' } });
+    const openOpportunities = await prisma.recruitment.count({ where: { status: 'ACTIVE' } });
     const upcomingOpportunities = await prisma.recruitment.count({ where: { status: 'UPCOMING' } });
-    const closingSoon = await prisma.recruitment.count({ where: { status: 'CLOSING_SOON' } });
+    const closingSoon = await prisma.recruitment.count({ where: { status: 'DEADLINE_SOON' } });
 
     let allOpps = await prisma.recruitment.findMany({
       where: { status: { not: 'CLOSED' } },
       include: {
         organization: true, eligibilityRule: true,
         exam: { include: { examTopics: { include: { topic: { include: { progress: true } } } } } },
-        applicationTracker: true,
+        applicationTrackers: { where: { userId: req.user.uid }, take: 1 },
       }
     });
 
     const enriched = allOpps.map(opp => {
+      opp = attachTracker(opp);
       const elig = checkEligibility(profile, opp.eligibilityRule);
-      const priority = calculatePriority(opp, elig, profile);
+      const priority = calculatePriority(opp, elig.status, profile);
       let readiness = 0;
       if (opp.exam?.examTopics) { readiness = calculateReadiness(opp.exam.examTopics); }
-      return { ...opp, computedEligibility: elig, computedPriority: priority, readiness };
+      return { ...opp, computedEligibility: elig.status, eligibilityReasons: elig.reasons, computedPriority: priority, readiness };
     });
     enriched.sort((a, b) => b.computedPriority - a.computedPriority);
 
@@ -291,7 +351,8 @@ app.get('/api/syllabus', async (req, res) => {
 app.put('/api/preparation/topics/:id', async (req, res) => {
   try {
     const topicId = parseInt(req.params.id);
-    const data = req.body;
+    const allowedFields = new Set(['status', 'studyHours', 'questionsSolved', 'accuracy']);
+    const data = pick(req.body, allowedFields);
     let progress = await prisma.topicProgress.findUnique({ where: { topicId } });
     if (progress) { progress = await prisma.topicProgress.update({ where: { topicId }, data: { ...data, lastStudiedAt: new Date() } }); }
     else { progress = await prisma.topicProgress.create({ data: { ...data, topicId, lastStudiedAt: new Date() } }); }
@@ -345,7 +406,7 @@ app.post('/api/cron/scrape', async (req, res) => {
     const sources = await prisma.scraperSource.findMany({
       where: { status: { not: 'UNAVAILABLE' } },
       orderBy: { lastCheckedAt: 'asc' },
-      take: 3
+      take: 10
     });
 
     const UniversalAdapter = require('./scrapers/UniversalAdapter');
@@ -363,6 +424,11 @@ app.post('/api/cron/scrape', async (req, res) => {
           const AdapterClass = require(adapterPath);
           adapterInstance = new AdapterClass(prisma);
         } else {
+          if (src.category === 'PRIVATE_IT') {
+            await prisma.scraperSource.update({ where: { id: src.id }, data: { status: 'UNAVAILABLE' } });
+            processed.push({ name: src.name, status: 'unavailable', reason: 'No supported official ATS adapter' });
+            continue;
+          }
           adapterInstance = new UniversalAdapter(prisma, src.adapterName, src.name, src.category);
         }
         await adapterInstance.process();
@@ -383,19 +449,11 @@ app.post('/api/cron/deadline-check', async (req, res) => {
   const secret = req.headers['x-cron-secret'] || req.query.secret;
   if (secret !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const now = new Date();
-    const threeDaysFromNow = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000));
-    const closingSoon = await prisma.recruitment.findMany({
-      where: { applicationEndDate: { gte: now, lte: threeDaysFromNow }, status: 'OPEN' }
-    });
-    const { notifyDeadline } = require('./services/notificationService');
-    for (const opp of closingSoon) {
-      const daysLeft = Math.ceil((opp.applicationEndDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-      notifyDeadline(opp, daysLeft);
-      await prisma.recruitment.update({ where: { id: opp.id }, data: { status: 'CLOSING_SOON' } });
-    }
-    res.json({ status: 'ok', updated: closingSoon.length });
+    const { processOpportunityLifecycle } = require('./services/opportunityLifecycle');
+    const result = await processOpportunityLifecycle();
+    res.json({ status: 'ok', ...result });
   } catch (e) {
+    console.error('[API] /api/cron/deadline-check error:', e);
     res.status(500).json({ error: e.message });
   }
 });
